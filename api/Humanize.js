@@ -1,56 +1,43 @@
 const axios = require('axios');
 
-exports.handler = async function(event, context) {
-    const headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Content-Type': 'application/json'
-    };
+export default async function handler(req, res) {
+    // CORS Headers for Vercel
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-    if (event.httpMethod === 'OPTIONS') {
-        return { statusCode: 200, headers, body: '' };
+    // Handle OPTIONS request
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
+
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: "Method Not Allowed" });
     }
 
     try {
-        const body = JSON.parse(event.body);
-        const userText = body.text;
+        const { text: userText } = req.body;
+        // Note: Make sure OPENROUTER_API_KEY is added in Vercel Settings
         const apiKey = process.env.OPENROUTER_API_KEY;
 
         if (!apiKey) {
-            return {
-                statusCode: 500,
-                headers,
-                body: JSON.stringify({ error: "API Key missing" })
-            };
+            return res.status(500).json({ error: "API Key missing in Vercel" });
         }
 
         const response = await axios.post(
             'https://openrouter.ai/api/v1/chat/completions',
             {
-                model: "meta-llama/llama-3.1-70b-instruct:", 
+                model: "meta-llama/llama-3.1-70b-instruct", 
                 messages: [
                     {
                         role: "system",
-                        // Advanced Prompt for Bypassing AI Detectors
-                        content: `You are an expert human ghostwriter with 20 years of experience. Your goal is to rewrite the provided text so that it passes all AI detectors (like ZeroGPT, Copyleaks, and GPTZero) with a 0% AI score.
-
-                        STRICT WRITING RULES:
-                        1. INCREASE PERPLEXITY: Use sophisticated and varied vocabulary. Avoid repeating common words.
-                        2. INCREASE BURSTINESS: Mix very short, punchy sentences with longer, complex ones. This is the #1 way to bypass detectors.
-                        3. REMOVE AI MARKERS: Do not use transition words like 'Moreover', 'Furthermore', 'In conclusion', or 'Additionally'.
-                        4. NATURAL FLOW: Use contractions (can't, don't), occasional rhetorical questions, and a conversational but professional tone.
-                        5. RESTRUCTURE: Completely change the sentence order and paragraph flow while keeping the original meaning intact.
-                        6. IDIOMATIC EXPRESSIONS: Use natural human idioms and phrases that AI rarely uses.
-                        
-                        Output ONLY the rewritten text. Do not provide any introductions or explanations.`
+                        content: `You are an expert human ghostwriter with 20 years of experience. Rewrite the text to bypass AI detectors like ZeroGPT and GPTZero. Use varied sentence lengths (burstiness), sophisticated vocabulary (perplexity), and avoid transition words like 'Moreover' or 'Furthermore'. Use natural idioms and contractions. Output ONLY the rewritten text.`
                     },
                     {
                         role: "user",
                         content: userText
                     }
                 ],
-                // Randomness badhane ke liye temperature 0.9 rakha hai
                 temperature: 0.9,
                 top_p: 1
             },
@@ -63,17 +50,14 @@ exports.handler = async function(event, context) {
             }
         );
 
-        return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify({ output: response.data.choices[0].message.content })
-        };
+        // Vercel success response
+        return res.status(200).json({ output: response.data.choices[0].message.content });
 
     } catch (error) {
-        return {
-            statusCode: 500,
-            headers,
-            body: JSON.stringify({ error: "API Issue", detail: error.message })
-        };
+        console.error("API Error:", error.message);
+        return res.status(500).json({ 
+            error: "API Issue", 
+            detail: error.response?.data?.error?.message || error.message 
+        });
     }
-};
+}
