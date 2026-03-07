@@ -217,12 +217,11 @@ document.addEventListener('DOMContentLoaded', () => {
             processingText.style.display = 'inline';
             outputText.value = "🤖 Humanizing your text... Please wait.";
 
-            try {
-                const response = await fetch("/.netlify/functions/humanize", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ text })
-                });
+            // Naya (Vercel):
+const response = await fetch('/api/humanize', { 
+    method: 'POST',
+    body: JSON.stringify({ text: inputText }) 
+});
 
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.error || "API Error");
